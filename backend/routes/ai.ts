@@ -50,12 +50,19 @@ router.get("/conversation/:conversationId",authMiddleware,async(req:CustomReques
 router.get("/conversation",authMiddleware,async(req:CustomRequest,res:Response)=>{
     const userId = req.userId;
     try{
-        const conversations = await prismaClient.conversation.findMany({
-        where: {
-            userId : userId
-        },
+        //  const conversations = await prismaClient.conversation.findMany({
+        //  where: {
+        //      userId : userId
+        //  },
+        //  })
+      
+        const execution = await prismaClient.execution.findMany({
+            where:{
+                userId
+            }
         })
-        res.json(conversations);
+        res.json(execution);
+        
         }
     catch(e){
         console.log("error fetching conversations")

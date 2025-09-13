@@ -1,10 +1,11 @@
 'use client'
 import "./globals.css"
-import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { ThemeProvider } from "../../providers/ThemeProvider"
 import Toggle from "@/components/Togglesidebar" 
 import ConditionalSidebarTrigger from "@/hooks/use-sidebar"
 import ThemeToggler from "@/components/ThemeToggler"
+import ResponsiveSidebarProvider from "../../providers/SideBar"
 
 
 
@@ -20,14 +21,14 @@ export default function Root({
           disableTransitionOnChange
           enableSystem
         >
-          <SidebarProvider>    
+          <ResponsiveSidebarProvider>    
             <Toggle/>
             <ConditionalSidebarTrigger />
             <SidebarInset>
-            <ThemeToggler className="fixed top-4 right-8"/>
+            <ThemeToggler className="fixed top-4 right-8 size-4 sm:size-8"/>
               {children}   
             </SidebarInset>
-          </SidebarProvider>
+          </ResponsiveSidebarProvider>
         </ThemeProvider>
       </body> 
     </html>
