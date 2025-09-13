@@ -8,7 +8,9 @@ import { json } from "zod";
 
 const router = Router();
 const prismaClient = new PrismaClient();
+
 router.get("/conversation/:conversationId",authMiddleware,async(req:CustomRequest,res:Response)=>{
+    
     const userId = req.userId   
     const conversationId = req.params.conversationId;
 
@@ -18,18 +20,25 @@ router.get("/conversation/:conversationId",authMiddleware,async(req:CustomReques
 
     try {
         
-        const conversation = await prismaClient.conversation.findUnique({
+        const conversation = await prismaClient.conversation.findFirst({
             where : {
              id:conversationId,
              userId : userId
             }
         }            
         );
-        if(conversation === null){
+
+        const execution = await prismaClient.execution.findUnique({
+            where:{
+                id : conversationId
+            }
+        })
+
+        if(!conversation && !execution){
             res.json("no conversation found")
             return;
         }
-        res.json(conversation); 
+        res.json({conversation:{conversation},executionTitle:{execution}}); 
     }   
     catch(e){
         res.json("error fetching conversation");
@@ -64,18 +73,36 @@ router.post("/chat",authMiddleware,async(req:CustomRequest,res:Response)=>{
     if(!userId){
         return;
     }
-   
+    
+    if(!success){
+        res.json("incorrect inputs");
+        return;
+    }
+
     let conversationId = data?.conversationId;
 
     if(!conversationId){
         const newConversation = await prismaClient.conversation.create({data : {userId}})
         conversationId = newConversation.id;
     }
-   
-   if(!success){
-    res.json("incorrect inputs");
-    return;
+  
+    const execution = await prismaClient.execution.findFirst({
+        where:{
+            id : conversationId,
+            userId
+        }
+    })    
+
+    if(!execution){
+      const newExecution = await prismaClient.execution.create({
+                data:{
+                    id : conversationId,
+                    userId,
+                    title : data.message.slice(0,20)+ "...",
+                }
+            })
     }
+   
  
     const model = MODELS.find((model) => model.id === data.model);
 
@@ -114,12 +141,12 @@ router.post("/chat",authMiddleware,async(req:CustomRequest,res:Response)=>{
             content : data.message 
         }],(chunk:string)=>{
             message += chunk;
-            res.write(`data:${JSON.stringify({content : chunk})}\n\n`);
+            res.write(`data: ${JSON.stringify({content : chunk})}\n\n`);
         })
-        res.write(`data : ${JSON.stringify({done : true})}\n\n`);
+        res.write(`data: ${JSON.stringify({done : true})}\n\n`);
     }
     catch(e){
-        res.write(`data:${JSON.stringify({error:"failed to generate response"})}\n\n`)
+        res.write(`data: ${JSON.stringify({error:"failed to generate response"})}\n\n`)
     }
     finally{
         res.end();

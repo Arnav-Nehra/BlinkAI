@@ -1,8 +1,8 @@
 import type {Message} from "./types"
 
 
-const EVICTION_TIME = 5 * 60 * 1000;
-const EVICTION_CLOCK_TIME = 1* 60 * 1000;
+const EVICTION_TIME = 2 * 60 * 1000;
+const EVICTION_CLOCK_TIME = 5* 60 * 1000;
 
 export class InMemoryStore {
     private static store : InMemoryStore;
@@ -48,6 +48,7 @@ export class InMemoryStore {
             }
         }
         this.instance_store[conversationId]?.messages?.push(message);
-        this.instance_store[conversationId].evictionTime += Date.now() + EVICTION_TIME;
+        this.instance_store[conversationId].evictionTime = Date.now() + EVICTION_TIME;
     }
 }
+        
