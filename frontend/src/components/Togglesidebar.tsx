@@ -131,7 +131,7 @@ const MenuOptions = ({setOpen}:{setOpen : (value : boolean | ((prev : boolean)=>
 </SidebarGroup>)
 }
 const ExecutionGroup = ({executionList}:{executionList:Execution[]})=>{
-  const FRONTEND_URL = "http://localhost:3001/chat"
+  const FRONTEND_URL = "http://localhost:3001/chats"
   return (
   <SidebarGroup className="min-h-6/8">
             <SidebarGroupLabel className="mb-4">Chats</SidebarGroupLabel>
