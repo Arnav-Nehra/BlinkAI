@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Execution } from '@/types/execution';
+import { Execution } from '@/types/index';
 
 interface ExecutionStore {
   executionList: Execution[];

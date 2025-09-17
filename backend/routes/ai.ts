@@ -25,6 +25,7 @@ router.get("/conversation/:conversationId",authMiddleware,async(req:CustomReques
                 conversationId,
             }
         })
+
         const conversation = await prismaClient.conversation.findFirst({
             where : {
              id:conversationId,
@@ -40,12 +41,15 @@ router.get("/conversation/:conversationId",authMiddleware,async(req:CustomReques
         })
 
         if(!conversation && !execution){
+
             res.json("no conversation found")
             return;
         }
         res.json(messages); 
     }   
     catch(e){
+        console.log("big error")
+        console.error(e);
         res.json("error fetching conversation");
         return;
     }

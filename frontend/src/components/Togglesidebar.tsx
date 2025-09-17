@@ -21,7 +21,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
 import useExecutions from "@/hooks/use-executions";
-import { Execution } from "@/types/execution";
+import { Execution } from "@/types/index";
 import { NextRouter, Router, useRouter } from "next/router";
 import { redirect } from "next/navigation";
 
