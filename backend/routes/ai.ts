@@ -1,141 +1,48 @@
-import { Router, type Response } from "express";
-import { authMiddleware } from "../authMiddleware";
-import { CreateChatSchema, MODELS, Role, type CustomRequest } from "../types";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { Router, type Request, type Response } from "express";
 import { InMemoryStore } from "../InMemoryStore.js";
 import { ChatCompletion } from "../openai.js";
-import { json } from "zod";
+import { z } from "zod";
+import { CreateChatSchema, Role } from "../types.js";
 
 const router = Router();
-const prismaClient = new PrismaClient();
 
-router.get("/conversation/:conversationId",authMiddleware,async(req:CustomRequest,res:Response)=>{
-    
-    const userId = req.userId   
-    const conversationId = req.params.conversationId;
 
-    if(!userId && !conversationId){
-        return;
+router.post("/aliveConversations",async(req,res)=>{
+    const BodySchema = z.object({ ids: z.array(z.string()) });
+    const parsed = BodySchema.safeParse(req.body);
+    if(!parsed.success){
+        return res.status(400).json({ error: "invalid_body" });
     }
-
-    try {
-       
-        const messages = await prismaClient.message.findMany({
-            where:{
-                conversationId,
-            }
-        })
-
-        const conversation = await prismaClient.conversation.findFirst({
-            where : {
-             id:conversationId,
-             userId : userId
-            }
-        }            
-        );
-
-        const execution = await prismaClient.execution.findUnique({
-            where:{
-                id : conversationId
-            }
-        })
-
-        if(!conversation && !execution){
-
-            res.json("no conversation found")
-            return;
-        }
-        res.json(messages); 
-    }   
-    catch(e){
-        console.log("big error")
-        console.error(e);
-        res.json("error fetching conversation");
-        return;
-    }
-
+    const aliveIds = InMemoryStore.getInstance().areConversationAlive(parsed.data.ids);
+    res.json({ alive: aliveIds });
 })
 
-router.get("/conversation",authMiddleware,async(req:CustomRequest,res:Response)=>{
-    const userId = req.userId;
-    try{
-        //  const conversations = await prismaClient.conversation.findMany({
-        //  where: {
-        //      userId : userId
-        //  },
-        //  })
-      
-        const execution = await prismaClient.execution.findMany({
-            where:{
-                userId
-            }
-        })
-        res.json(execution);
-        
-        }
-    catch(e){
-        console.log("error fetching conversations")
-        res.json("error fetching conversations")
-        return;
-    }
-})
-
-
-router.post("/chat",authMiddleware,async(req:CustomRequest,res:Response)=>{
+router.post("/chat",async(req:Request,res:Response)=>{
   
-    const userId = req.userId; 
+    
     const {success,data} = CreateChatSchema.safeParse(req.body);
-   
-    if(!userId){
-        return;
-    }
-    
+    let conversationId = data?.conversationId
     if(!success){
-        res.json("incorrect inputs");
-        return;
+        return res.status(400).json({ error: "invalid_body"});
     }
-
-    let conversationId = data?.conversationId;
-
+     
+    
     if(!conversationId){
-        const newConversation = await prismaClient.conversation.create({data : {userId}})
-        conversationId = newConversation.id;
+        return res.status(400).json({ error: "conversationId_required" });
     }
   
-    const execution = await prismaClient.execution.findFirst({
-        where:{
-            id : conversationId,
-            userId
-        }
-    })    
-
-    if(!execution){
-      const newExecution = await prismaClient.execution.create({
-                data:{
-                    id : conversationId,
-                    userId,
-                    title : data.message.slice(0,20)+ "...",
-                }
-            })
-    }
    
- 
-    const model = MODELS.find((model) => model.id === data.model);
+
+    const model = "gemini-2.5-flash"
 
     let existingMessages = InMemoryStore.getInstance().get(conversationId);
-   
-    if(!existingMessages.length){
-        const messages = await prismaClient.message.findMany({
-            where:{
-                conversationId 
-            }
-        })
-        messages.map((message)=>{
+    if(!existingMessages.length && data?.existingMessages?.length){
+        for (const message of data.existingMessages){
             InMemoryStore.getInstance().add(conversationId,{
-                role:message.role as Role,
-                content:message.content
+                role: message.role as Role,
+                content: message.content
             })
-        })
+        }
         existingMessages = InMemoryStore.getInstance().get(conversationId);
     }
     
@@ -150,11 +57,12 @@ router.post("/chat",authMiddleware,async(req:CustomRequest,res:Response)=>{
 
 
     let message = "";
-
+    
     try{
-        await ChatCompletion(data.model,[...existingMessages,{
+        console.log("messages ->", [...existingMessages, { role: Role.User, content: data.message }]);
+        await ChatCompletion(model,[...existingMessages,{
             role : Role.User,
-            content : data.message 
+            content : data?.message 
         }],(chunk:string)=>{
             message += chunk;
             res.write(`data: ${JSON.stringify({content : chunk})}\n\n`);
@@ -172,33 +80,14 @@ router.post("/chat",authMiddleware,async(req:CustomRequest,res:Response)=>{
         role:Role.User,
         content:data.message
     })
-
-    InMemoryStore.getInstance().add(conversationId,{
-        role:Role.User,
-        content:data.message
-    })
+ 
 
     InMemoryStore.getInstance().add(conversationId,{
         role:Role.Agent,
         content:message
     })
 
-    await prismaClient.$transaction([
-        prismaClient.message.createMany({
-            data:[
-                {
-                    conversationId,
-                    content:data.message,
-                    role:Role.User
-                },
-                {
-                    conversationId,
-                    content:message,
-                    role:Role.Agent
-                },
-            ]
-        })
-    ])
+    
 });
 
 export default router;

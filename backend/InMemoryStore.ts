@@ -38,7 +38,14 @@ export class InMemoryStore {
     get(conversationId : string): Message[]{
         return this.instance_store[conversationId]?.messages ?? []
     }
-
+    
+    areConversationAlive(conversationIds : string[]): string[]{
+        const now = Date.now();
+        return conversationIds.filter((id)=>{
+            const entry = this.instance_store[id];
+            return !!entry && entry.evictionTime > now;
+        });
+    }
 
     add(conversationId:string, message:Message){
         if(!this.instance_store[conversationId]){
