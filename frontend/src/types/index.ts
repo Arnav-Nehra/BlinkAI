@@ -10,6 +10,7 @@ export interface Messages{
   id : string 
   content : string
   role : "user" | "assistant";
+  createdAt: Date;
 }
 
 export const BACKEND_URL  = "http://localhost:3000"

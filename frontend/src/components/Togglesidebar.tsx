@@ -1,6 +1,5 @@
 'use client'
 import { Calendar, Home, Inbox, Notebook, PenBox, Search, SearchCheck, Settings } from "lucide-react"
-
 import {
   Sidebar,
   SidebarContent,
@@ -18,33 +17,64 @@ import {
 } from "@/components/ui/sidebar"
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
-import useExecutions from "@/hooks/use-executions";
 import { Execution } from "@/types/index";
-import { NextRouter, Router, useRouter } from "next/router";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useLiveQuery } from "dexie-react-hooks";
+import { getConversations } from "@/dexie/queries";
+import { Conversation } from "@/dexie/db";
 
-export default function Toggle() {
+export const FRONTEND_URL  = `http://localhost:3001/chats`
+
+function Toggle() {
   const { open } = useSidebar();
   const [openCommand, setOpen] = useState(false);
-  const { executionList } = useExecutions();
+  const conversations = useLiveQuery(()=>getConversations(),[])
+  const router = useRouter();
+
+  const handleOpen = useCallback(() => setOpen(true), []);
+
+  const conversationItems = useMemo(() => {
+    if (!conversations) return null;
+    return conversations.map((conversation) => {
+      const onClick = () => router.push(`${FRONTEND_URL}/${conversation.id}`);
+      return (
+        <SidebarMenuButton onClick={onClick} className="ml-1" key={conversation.id}>
+          <span>{conversation.title}</span>
+        </SidebarMenuButton>
+      );
+    });
+  }, [conversations, router]);
+
   return (
     <>
       <Sidebar>
         <SidebarContent>
           <Header open={open} />
           <MenuOptions setOpen={setOpen}/>
-          <ExecutionGroup executionList={executionList}/>
+          <SidebarGroup className="max-h-5/8 overflow-auto ">
+            <SidebarGroupLabel className="mb-4 ">Chats</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="overflow-y-auto overflow-x-hidden">
+                {conversationItems}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
           <Footer />
         </SidebarContent>
       </Sidebar>
-      <CommandMenu open={openCommand} setOpen={setOpen} executionList={executionList} />
+      <CommandMenu open={openCommand} setOpen={setOpen} conversationsList={conversations ?? []} />
     </>
   )
 }
+export default memo(Toggle)
 
-function CommandMenu({ open, setOpen, executionList }: { open: boolean, setOpen: (value: boolean | ((prev: boolean) => boolean)) => void, executionList: Execution[] }) {
+const CommandMenu = memo(function CommandMenu({ open, setOpen, conversationsList }: 
+  { open: boolean, 
+    setOpen: (value: boolean | ((prev: boolean) => boolean)) => void, 
+    conversationsList : Conversation[] 
+ }) {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -63,18 +93,18 @@ function CommandMenu({ open, setOpen, executionList }: { open: boolean, setOpen:
       <CommandList>
         <CommandEmpty>No chats found.</CommandEmpty>
         <CommandGroup className=""heading="Recent chats">
-          {executionList.map((execution) => (
-            <CommandItem className="mb-2"key={execution.id}>
-              {execution.title}
+          {conversationsList.map((conversations) => (
+            <CommandItem className="mb-2"key={conversations.id}>
+              {conversations.title}
             </CommandItem>
           ))}
         </CommandGroup>
       </CommandList>
     </CommandDialog>
   )
-}
+})
 
-const Header = ({ open }: { open: boolean }) => {
+const Header = memo(({ open }: { open: boolean }) => {
   return (
 
     <SidebarHeader className="flex flex-row mx-2 justify-between">
@@ -93,19 +123,20 @@ const Header = ({ open }: { open: boolean }) => {
       <div>{open ? <SidebarTrigger></SidebarTrigger> : ""}</div>
     </SidebarHeader>
   )
-}
+})
 
-const Footer = () => {
+const Footer = memo(() => {
   return (
-    <SidebarFooter className="">
+    <SidebarFooter className="mt-20">
       <SidebarMenuButton className="items-center">
         <span className="ml-20">Logout</span>
       </SidebarMenuButton>
     </SidebarFooter>
   )
-}
+})
 
-const MenuOptions = ({setOpen}:{setOpen : (value : boolean | ((prev : boolean)=>boolean)) => void })=>{
+const MenuOptions = memo(({setOpen}:{setOpen : (value : boolean | ((prev : boolean)=>boolean)) => void })=>{
+  const onOpen = useCallback(() => setOpen(true), [setOpen]);
   return ( 
   <SidebarGroup >
   <SidebarGroupContent>
@@ -119,7 +150,7 @@ const MenuOptions = ({setOpen}:{setOpen : (value : boolean | ((prev : boolean)=>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
-        <SidebarMenuButton onClick={() => setOpen(true)} asChild>
+        <SidebarMenuButton onClick={onOpen} asChild>
           <div className="flex flex-row gap-4">
             <Search />
             <span>Search</span>
@@ -129,23 +160,4 @@ const MenuOptions = ({setOpen}:{setOpen : (value : boolean | ((prev : boolean)=>
     </SidebarMenu>
   </SidebarGroupContent>
 </SidebarGroup>)
-}
-const ExecutionGroup = ({executionList}:{executionList:Execution[]})=>{
-  const FRONTEND_URL = "http://localhost:3001/chats"
-  return (
-  <SidebarGroup className="min-h-6/8">
-            <SidebarGroupLabel className="mb-4">Chats</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className=" overflow-y-auto overflow-x-hidden">
-                {executionList.map((execution) => {
-                  return <SidebarMenuButton onClick = {()=>{
-                    redirect(`${FRONTEND_URL}/${execution.id}`)
-                  }}className="ml-1" key={execution.id}>
-                    <span>{execution.title}</span>
-                  </SidebarMenuButton>
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-  )
-}
+})

@@ -1,218 +1,288 @@
 'use client'
+
 import { cn } from "@/lib/utils";
 import { Messages } from "@/types";
 import { ArrowLeftRightIcon, CheckCircleIcon, CheckIcon, CopyIcon, WrapText } from "lucide-react";
 import { memo, useMemo } from "react";
-import ReactMarkdown from "react-markdown"
+import { marked }  from "marked";
+import DOMPurify from "dompurify";
 import SyntaxHighlighter from "react-syntax-highlighter";
-import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
-import remarkGfm from "remark-gfm";
-const MessageComponent = memo((
-    {
-        message,
-        onCopy,
-        copied,
-        isWrapped,
-        toggleWrap,
-        resolvedTheme,
-        geistMono
-    }:
-        {
-            message: Messages;
-            onCopy: (content: string) => void;
-            copied: boolean;
-            isWrapped: boolean;
-            toggleWrap: () => void;
-            resolvedTheme: string | undefined;
-            geistMono: any;
-        }
+import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs"; 
 
-) => {
-    const markdownComponents = useMemo(() => ({
-        code(props: any) {
-          const { children, className, ...rest } = props;
-          const match = /language-(\w+)/.exec(className ?? "");
-          const isInline = !match;
-          const codeContent = Array.isArray(children)
-            ? children.join("")
-            : typeof children === "string"
-              ? children
-              : "";
+interface Props {
+  message: Messages;
+  onCopy: (content: string, messageId: string) => void;
+  copiedMessageId: string | null;
+  isWrapped: boolean;
+  toggleWrap: () => void;
+  resolvedTheme: string | undefined;
+  geistMono: any;
+}
+
+const MessageComponent = memo(
+  ({ message, onCopy, copiedMessageId, isWrapped, toggleWrap, resolvedTheme, geistMono }: Props) => {
+    const isCopied = copiedMessageId === message.id;
     
-          return isInline ? (
-            <code
-              className={cn(
-                "bg-accent rounded-sm px-1 py-0.5 text-sm",
-                geistMono.className
-              )}
-              {...rest}
-            >
-              {children}
-            </code>
-          ) : (
-            <div
-              className={`${geistMono.className} my-4 overflow-hidden rounded-md`}
-            >
-              <div className="bg-accent flex items-center justify-between px-4 py-2 text-sm">
-                <div>{match ? match[1] : "text"}</div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleWrap}
-                    className={`hover:bg-muted/40 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-all duration-200`}
-                    aria-label="Toggle line wrapping"
-                  >
-                    {isWrapped ? (
-                      <>
-                        <ArrowLeftRightIcon
-                         
-                          className="h-3 w-3"
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <WrapText className="h-3 w-3" />
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => onCopy(codeContent)}
-                    className={`hover:bg-muted/40 sticky top-10 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-all duration-200`}
-                    aria-label="Copy code"
-                  >
-                    {copied ? (
-                      <>
-                        <CheckCircleIcon
-                          className="size-4"
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <CopyIcon className="size-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              <SyntaxHighlighter
-                language={match ? match[1] : "text"}
-                style={atomOneDark}
-                customStyle={{
-                  margin: 0,
-                  padding: "1rem",
-                  backgroundColor:
-                    resolvedTheme === "dark"
-                      ? "#1a1620"
-                      : "#f5ecf9",
-                  color:
-                    resolvedTheme === "dark"
-                      ? "#e5e5e5"
-                      : "#171717",
-                  borderRadius: 0,
-                  borderBottomLeftRadius: "0.375rem",
-                  borderBottomRightRadius: "0.375rem",
-                  fontSize: "1.2rem",
-                  fontFamily: `var(--font-geist-mono), ${geistMono.style.fontFamily}`,
-                }}
-                wrapLongLines={isWrapped}
-                codeTagProps={{
-                  style: {
-                    fontFamily: `var(--font-geist-mono), ${geistMono.style.fontFamily}`,
-                    fontSize: "0.85em",
-                    whiteSpace: isWrapped ? "pre-wrap" : "pre",
-                    overflowWrap: isWrapped
-                      ? "break-word"
-                      : "normal",
-                    wordBreak: isWrapped
-                      ? "break-word"
-                      : "keep-all",
-                  },
-                }}
-                PreTag="div"
-              >
-                {codeContent}
-              </SyntaxHighlighter>
-            </div>
-          );
-        },
-        strong: (props: any) => (
-          <span className="font-bold">{props.children}</span>
-        ),
-        a: (props: any) => (
-          <a
-            className="text-primary underline"
-            href={props.href}
-          >
-            {props.children}
-          </a>
-        ),
-        h1: (props: any) => (
-          <h1 className="my-4 text-2xl font-bold">
-            {props.children}
-          </h1>
-        ),
-        h2: (props: any) => (
-          <h2 className="my-3 text-xl font-bold">
-            {props.children}
-          </h2>
-        ),
-        h3: (props: any) => (
-          <h3 className="my-2 text-lg font-bold">
-            {props.children}
-          </h3>
-        ),
-      }), [copied, isWrapped, toggleWrap, onCopy, resolvedTheme, geistMono]);
+ 
+    const safeContent = useMemo(() => {
+      if (!message.content || typeof message.content !== 'string') {
+        return '';
+      }
+      
+     
+      return message.content.length > 100000 ? message.content.substring(0, 100000) + '...' : message.content;
+    }, [message.content]);
     
-      return (
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    });
+
+ 
+    const parsedContent = useMemo(() => {
+      const dirty = marked.parse(safeContent) as string;
+      
+     
+      const sanitized = DOMPurify.sanitize(dirty, {
+
+        ALLOWED_TAGS: [
+          'p', 'br', 'strong', 'em', 'u', 'b', 'i', 's', 'strike', 'del',
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'ul', 'ol', 'li',
+          'blockquote', 'pre', 'code',
+          'a', 'img',
+          'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'div', 'span'
+        ],
+   
+        ALLOWED_ATTR: [
+          'href', 'title', 'alt', 'src', 'width', 'height',
+          'class', 'id', 'lang', 'dir'
+        ],
+ 
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+        
+        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+        
+        FORBID_TAGS: ['script', 'object', 'embed', 'form', 'input', 'textarea', 'button', 'select', 'option'],
+        
+        SANITIZE_DOM: true,
+   
+        KEEP_CONTENT: true,
+     
+        RETURN_DOM: false,
+      
+        RETURN_DOM_FRAGMENT: false,
+
+        RETURN_TRUSTED_TYPE: false
+      });
+      
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = sanitized;
+      
+    
+      const codeBlocks = tempDiv.querySelectorAll('pre code');
+      const processedBlocks: Array<{
+        type: 'code' | 'text';
+        content: string;
+        language?: string;
+        isInline?: boolean;
+      }> = [];
+      
+      let lastIndex = 0;
+      let htmlContent = tempDiv.innerHTML;
+      
+      codeBlocks.forEach((codeBlock) => {
+   
+        const codeText = codeBlock.textContent || '';
+        
+       
+        const className = codeBlock.className || '';
+        const languageMatch = className.match(/language-([a-zA-Z0-9_-]+)/);
+        const rawLanguage = languageMatch?.[1] || 'text';
+  
+        const allowedLanguages = [
+          'javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp',
+          'html', 'css', 'scss', 'sass', 'json', 'xml', 'yaml', 'yml',
+          'sql', 'bash', 'shell', 'powershell', 'dockerfile', 'go', 'rust',
+          'php', 'ruby', 'swift', 'kotlin', 'scala', 'r', 'matlab',
+          'markdown', 'md', 'text', 'plain', 'diff', 'git', 'ini', 'toml',
+          'nginx', 'apache', 'vim', 'vimrc', 'sh', 'zsh', 'fish'
+        ];
+        
+        const language = allowedLanguages.includes(rawLanguage.toLowerCase()) 
+          ? rawLanguage.toLowerCase() 
+          : 'text';
+        
+        const isInline = !codeBlock.closest('pre');
+        
+        const blockStart = htmlContent.indexOf(codeBlock.outerHTML);
+        if (blockStart > lastIndex) {
+          // Add text content before this code block
+          processedBlocks.push({
+            type: 'text',
+            content: htmlContent.slice(lastIndex, blockStart)
+          });
+        }
+        
+        
+        processedBlocks.push({
+          type: 'code',
+          content: codeText,
+          language,
+          isInline
+        });
+        
+        lastIndex = blockStart + codeBlock.outerHTML.length;
+      });
+      
+    
+      if (lastIndex < htmlContent.length) {
+        processedBlocks.push({
+          type: 'text',
+          content: htmlContent.slice(lastIndex)
+        });
+      }
+      
+      return processedBlocks;
+    }, [safeContent]);
+
+    return (
+      <div
+        key={message.id}
+        className={cn(
+          "group mb-4 flex w-full flex-col gap-2",
+          message.role === "assistant" ? "items-start" : "items-end"
+        )}
+      >
         <div
-          key={message.id}
-          className={`group mb-8 flex w-full flex-col ${message.role === "assistant" ? "items-start" : "items-end"} gap-2`}
+          className={cn(
+            "prose cursor-pointer dark:prose-invert max-w-full rounded-lg px-2 sm:px-3 py-1 sm:py-2 overflow-hidden",
+            message.role === "user"
+              ? "bg-accent/10 w-fit max-w-[85%] sm:max-w-[80%] font-medium text-sm sm:text-base"
+              : "w-full p-0"
+          )}
         >
-         
-          <div
-            className={cn(
-              "prose cursor-pointer dark:prose-invert max-w-none rounded-lg px-4 py-2",
-              message.role === "user"
-                ? "bg-accent/10 w-fit max-w-full font-medium"
-                : "w-full p-0"
-            )}
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
-          <div className="font-medium">
-            {message.role === "assistant" && (
-              <div className="invisible flex w-fit items-center gap-2 text-base font-semibold group-hover:visible">
-                <button
-                  onClick={() => onCopy(message.content)}
-                  className="hover:bg-accent flex size-7 items-center justify-center rounded-lg"
-                >
-                  {!copied ? (
-                    <CopyIcon />
-                  ) : (
-                    <CheckIcon  />
+          <div className="space-y-2">
+            {parsedContent.map((block, index) => {
+              if (block.type === 'code') {
+                if (block.isInline) {
+                  return (
+                    <code
+                      key={index}
+                      className="bg-muted px-1.5 py-0.5 rounded font-mono"
+                    >
+                      {block.content}
+                    </code>
+                  );
+                }
+                
+                return (
+                  <div key={index} className="relative group">
+                    <div className="flex items-center justify-between bg-muted/50 px-2 sm:px-3 py-1 sm:py-2 text-xs font-medium text-muted-foreground rounded-t-md border-b">
+                      <span className="uppercase text-xs sm:text-sm">{block.language}</span>
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <button
+                          onClick={toggleWrap}
+                          className="hover:bg-muted/40 flex items-center gap-1 sm:gap-1.5 rounded px-1 sm:px-2 py-1 text-xs font-medium transition-all duration-200"
+                          aria-label="Toggle line wrapping"
+                        >
+                          {isWrapped ? (
+                            <ArrowLeftRightIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          ) : (
+                            <WrapText className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => onCopy(block.content, message.id)}
+                          className="hover:bg-muted/40 flex items-center gap-1 sm:gap-1.5 rounded px-1 sm:px-2 py-1 text-xs font-medium transition-all duration-200"
+                          aria-label="Copy code"
+                        >
+                          {isCopied ? (
+                            <CheckCircleIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+                          ) : (
+                            <CopyIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <SyntaxHighlighter
+                      language={block.language === 'text' ? undefined : block.language}
+                      style={resolvedTheme === "dark" ? atomOneDark : atomOneLight}
+                      customStyle={{
+                        margin: 0,
+                        padding: "1rem",
+                        backgroundColor: resolvedTheme === "dark" ? "#1a1620" : "#f8f9fa",
+                        borderRadius: 0,
+                        borderBottomLeftRadius: "0.375rem",
+                        borderBottomRightRadius: "0.375rem",
+                        fontSize : "1.25rem",
+                        fontFamily: `var(--font-geist-mono), ${geistMono.style.fontFamily}`,
+                        overflow: "auto",
+                        maxWidth: "100%",
+                      }}
+                      wrapLongLines={isWrapped}
+                      codeTagProps={{
+                        style: {
+                          fontFamily: `var(--font-geist-mono), ${geistMono.style.fontFamily}`,
+                          fontSize: "0.9rem",
+                        },
+                      }}
+                      PreTag="div"
+                      showLineNumbers={false}
+                      showInlineLineNumbers={false}
+                    >
+                      {block.content}
+                    </SyntaxHighlighter>
+                  </div>
+                );
+              }
+              
+              return (
+                <div
+                  key={index}
+                  dangerouslySetInnerHTML={{ __html: block.content }}
+                  className={cn(
+                    "[&_p]:break-words [&_p]:overflow-wrap-anywhere",
+                    "[&_div]:break-words [&_div]:overflow-wrap-anywhere",
+                    "[&_ul]:break-words [&_ul]:overflow-wrap-anywhere",
+                    "[&_ol]:break-words [&_ol]:overflow-wrap-anywhere",
+                    "[&_li]:break-words [&_li]:overflow-wrap-anywhere",
+                    "overflow-wrap-anywhere break-words"
                   )}
-                </button>
-              </div>
-            )}
-            {message.role === "user" && (
-              <button
-                onClick={() => onCopy(message.content)}
-                className="hover:bg-accent flex size-7 items-center justify-center rounded-lg"
-              >
-                {!copied ? (
-                  <CopyIcon />
-                ) : (
-                  <CheckIcon  />
-                )}
-              </button>
-            )}
+                  style={{
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
-      );
-})
 
-export default MessageComponent
+        <div className="font-medium">
+          {message.role === "assistant" && (
+            <div className="invisible flex w-fit items-center gap-1 text-xs sm:text-sm group-hover:visible">
+              <button
+                onClick={() => onCopy(message.content, message.id)}
+                className="hover:bg-accent/50 flex size-5 sm:size-6 items-center justify-center rounded-md transition-colors"
+              >
+                {!isCopied ? <CopyIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <CheckIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
+              </button>
+            </div>
+          )}
+          {message.role === "user" && (
+            <button
+              onClick={() => onCopy(message.content, message.id)}
+              className="hover:bg-accent/50 flex size-5 sm:size-6 items-center justify-center rounded-md transition-colors"
+            >
+              {!isCopied ? <CopyIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <CheckIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+export default MessageComponent;

@@ -21,14 +21,7 @@ export default function Root({
           disableTransitionOnChange
           enableSystem
         >
-          <ResponsiveSidebarProvider>    
-            <Toggle/>
-            <ConditionalSidebarTrigger />
-            <SidebarInset>
-            <ThemeToggler className="fixed top-4 right-8 size-4 sm:size-8"/>
-              {children}   
-            </SidebarInset>
-          </ResponsiveSidebarProvider>
+          {children}
         </ThemeProvider>
       </body> 
     </html>
